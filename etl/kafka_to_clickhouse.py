@@ -15,6 +15,7 @@ df_parsed = df.selectExpr("CAST(value AS STRING)")
 # Можно здесь добавить from_json + schema, фильтрацию и запись
 df_parsed.write \
         .format("jdbc") \
+        .option("driver", "com.clickhouse.jdbc.ClickHouseDriver") \
         .option("url", "jdbc:clickhouse://localhost:8123/default") \
         .option("dbtable", "kafka_data") \
         .option("user", "custom_user") \
@@ -22,5 +23,7 @@ df_parsed.write \
         .option("createTableOptions", "ENGINE = MergeTree ORDER BY id") \
         .mode("overwrite") \
         .save()
+
+
 
 
