@@ -16,8 +16,8 @@ df_parsed = df.selectExpr("CAST(value AS STRING)")
 df_parsed.write.format("jdbc") \
                 .option("url", "jdbc:clickhouse://localhost:8123") \
                 .option("dbtable", "orders_raw") \
-                .option("user", "default") \
-                .option("password", "") \
+                .option("user", "custom_user") \
+                .option("password", "0000") \
                 .option("driver", "com.clickhouse.jdbc.ClickHouseDriver") \
                 .save()
 
