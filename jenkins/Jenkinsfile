@@ -19,7 +19,7 @@ pipeline {
     stage('Register Debezium Connector') {
       steps {
         sh '''
-        curl -X POST http://localhost:8083/connectors           -H "Content-Type: application/json"           -d @debezium-connector.json || true
+        curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json"           -d @debezium-connector.json || true
         '''
       }
     }
@@ -27,7 +27,7 @@ pipeline {
     stage('Start ClickHouse') {
       steps {
         sh '''
-        docker run -d --name clickhouse-server --ulimit nofile=262144:262144           -p 8123:8123 -p 9000:9000 clickhouse/clickhouse-server || true
+        docker run -d --name clickhouse-server --ulimit nofile=262144:262144 -p 8123:8123 -p 9000:9000 clickhouse/clickhouse-server || true
         sleep 5
         '''
       }
@@ -44,7 +44,7 @@ pipeline {
 
     stage('Run Spark Job') {
       steps {
-        sh 'spark-submit etl/kafka_to_clickhouse.py'
+        sh '/opt/homebrew/bin/spark-submit etl/kafka_to_clickhouse.py'
       }
     }
   }
