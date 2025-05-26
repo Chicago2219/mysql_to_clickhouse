@@ -44,9 +44,9 @@ pipeline {
 
     stage('Run Spark Job') {
       steps {
-        sh '/opt/homebrew/bin/spark-submit \
-            --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1 \
-            etl/kafka_to_clickhouse.py'
+        sh '''
+        /opt/homebrew/bin/spark-submit           --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1           --jars https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/0.6.0/clickhouse-jdbc-0.6.0.jar           etl/kafka_to_clickhouse.py
+        '''
       }
     }
   }
