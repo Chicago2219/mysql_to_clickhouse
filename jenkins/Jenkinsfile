@@ -1,0 +1,24 @@
+
+pipeline {
+  agent any
+
+  stages {
+    stage('Deploy') {
+      steps {
+        sh 'docker-compose up -d'
+      }
+    }
+
+    stage('Register Debezium Connector') {
+      steps {
+        sh 'curl -X POST -H "Content-Type: application/json" --data @debezium-connector.json http://localhost:8083/connectors'
+      }
+    }
+
+    stage('Run Spark Job') {
+      steps {
+        sh 'spark-submit etl/kafka_to_clickhouse.py'
+      }
+    }
+  }
+}
