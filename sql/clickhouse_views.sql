@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS default.transactions (
 ORDER BY id;
 
 
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS default.user_summary_mv
 ENGINE = AggregatingMergeTree
 ORDER BY user_id
@@ -17,3 +18,4 @@ SELECT
     sumState(amount) AS total_amount
 FROM default.transactions
 GROUP BY user_id;
+
