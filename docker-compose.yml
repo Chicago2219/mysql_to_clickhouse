@@ -1,5 +1,6 @@
 
-version: '3'
+version: '3.8'
+
 services:
   mysql:
     image: mysql:8.0
@@ -7,12 +8,22 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: bank
     ports:
-      - "3306:3306"
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      retries: 5
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 10s
+      retries: 5
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -21,7 +32,15 @@ services:
     environment:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      interval: 10s
+      retries: 5
 
   connect:
     image: debezium/connect:2.5
@@ -37,5 +56,11 @@ services:
       VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       PLUGIN_PATH: /kafka/connect
     depends_on:
-      - kafka
-      - mysql
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083"]
+      interval: 15s
+      retries: 5
