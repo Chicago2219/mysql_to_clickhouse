@@ -4,7 +4,7 @@ pipeline {
   stages {
     stage('Start Services') {
       steps {
-        sh '/usr/local/bin/docker-compose up -d'
+        sh 'docker-compose start || docker-compose up -d'
         sh 'sleep 15'
       }
     }
@@ -12,7 +12,7 @@ pipeline {
     stage('Init MySQL') {
       steps {
         sh '''
-        docker exec project-mysql-1 sh -c 'mysql -uroot -proot bank < /sql/init_mysql.sql' || true
+        docker exec project-mysql-1 mysl sh -c 'mysql -uroot -proot bank < /sql/init_mysql.sql' || true
         '''
       }
     }
