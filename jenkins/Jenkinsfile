@@ -23,7 +23,7 @@ pipeline {
               echo "Registering Debezium Connector..."
               curl -X POST http://localhost:8083/connectors \
                   -H 'Content-Type: application/json' \
-                  -d @debezium-connector.json || true
+                  -d @./debezium-connector.json || true
           '''
       }
   }
