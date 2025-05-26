@@ -1,0 +1,17 @@
+{
+  "name": "mysql-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "database.hostname": "project-mysql-1",
+    "database.port": "3306",
+    "database.user": "root",
+    "database.password": "root",
+    "database.server.id": "184054",
+    "database.server.name": "bank_server",
+    "database.include.list": "bank",
+    "table.include.list": "bank.accounts,bank.transactions",
+    "database.history.kafka.bootstrap.servers": "project-kafka-1:9092",
+    "database.history.kafka.topic": "schema-changes.bank",
+    "include.schema.changes": "true"
+  }
+}
