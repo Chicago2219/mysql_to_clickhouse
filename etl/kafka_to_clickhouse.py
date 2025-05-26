@@ -14,7 +14,7 @@ df_parsed = df.selectExpr("CAST(value AS STRING)")
 
 # Можно здесь добавить from_json + schema, фильтрацию и запись
 df_parsed.write.format("jdbc") \
-                .option("url", "jdbc:clickhouse://localhost:8123") \
+                .option("url", "jdbc:clickhouse://clickhouse-server:8123/") \
                 .option("dbtable", "orders_raw") \
                 .option("user", "custom_user") \
                 .option("password", "0000") \
