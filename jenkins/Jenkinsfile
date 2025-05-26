@@ -5,7 +5,7 @@ pipeline {
     stage('Start Services') {
       steps {
         sh 'docker-compose start || docker-compose up -d'
-        sh 'sleep 15'
+        sh 'sleep 30'
       }
     }
 
