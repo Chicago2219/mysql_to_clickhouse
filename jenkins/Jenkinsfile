@@ -3,15 +3,42 @@ pipeline {
   agent any
 
   stages {
-    stage('Deploy') {
+    stage('Start Services') {
       steps {
-        sh '/usr/local/bin/docker-compose up -d'
+        sh '/opt/homebrew/bin/docker-compose up -d'
+        sh 'sleep 15'
+      }
+    }
+
+    stage('Init MySQL') {
+      steps {
+        sh 'docker exec mysql mysql -uroot -proot bank < sql/init_mysql.sql || true'
       }
     }
 
     stage('Register Debezium Connector') {
       steps {
-        sh 'curl -X POST -H "Content-Type: application/json" --data @debezium-connector.json http://localhost:8083/connectors'
+        sh '''
+        curl -X POST http://localhost:8083/connectors           -H "Content-Type: application/json"           -d @debezium-connector.json || true
+        '''
+      }
+    }
+
+    stage('Start ClickHouse') {
+      steps {
+        sh '''
+        docker run -d --name clickhouse-server --ulimit nofile=262144:262144           -p 8123:8123 -p 9000:9000 clickhouse/clickhouse-server || true
+        sleep 5
+        '''
+      }
+    }
+
+    stage('Create ClickHouse Views') {
+      steps {
+        sh '''
+        docker exec clickhouse-server clickhouse-client --query="CREATE DATABASE IF NOT EXISTS default;"
+        docker exec -i clickhouse-server clickhouse-client < sql/clickhouse_views.sql || true
+        '''
       }
     }
 
