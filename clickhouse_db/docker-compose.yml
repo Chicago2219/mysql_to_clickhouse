@@ -1,0 +1,15 @@
+services:
+  clickhouse-server:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-server
+    ports:
+      - "8123:8123"  # HTTP интерфейс
+      - "9000:9000"  # Native TCP интерфейс
+    environment:
+      CLICKHOUSE_DB: default
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./init_user.sql:/docker-entrypoint-initdb.d/init_user.sql
+
+volumes:
+  clickhouse_data:
