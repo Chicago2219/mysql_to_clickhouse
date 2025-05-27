@@ -1,29 +1,46 @@
-
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
-
-spark = SparkSession.builder.appName("KafkaToClickHouse").getOrCreate()
-
-df = spark.read.format("kafka") \
-                .option("subscribe", "dbserver1.bank.orders") \
-                .option("kafka.bootstrap.servers", "localhost:9092") \
-                .load()
+from pyspark.sql.functions import from_json, col
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 
 
-df_parsed = df.selectExpr("CAST(value AS STRING)")
-
-# Можно здесь добавить from_json + schema, фильтрацию и запись
-df_parsed.write \
-        .format("jdbc") \
-        .option("driver", "com.clickhouse.jdbc.ClickHouseDriver") \
-        .option("url", "jdbc:clickhouse://localhost:8123/default") \
-        .option("dbtable", "kafka_data") \
-        .option("user", "custom_user") \
-        .option("password", "0000") \
-        .option("createTableOptions", "ENGINE = MergeTree ORDER BY id") \
-        .mode("overwrite") \
-        .save()
+spark = SparkSession.builder \
+    .appName("KafkaToClickHouse") \
+    .getOrCreate()
 
 
+schema = StructType([
+    StructField("id", IntegerType()),
+    StructField("name", StringType()),
+    StructField("email", StringType())
+])
 
 
+df_raw = spark.read.format("kafka") \
+    .option("kafka.bootstrap.servers", "localhost:9092") \
+    .option("subscribe", "dbserver1.bank.customers") \
+    .load()
+
+
+df_json = df_raw.selectExpr("CAST(value AS STRING) as json_str") \
+    .select(from_json(col("json_str"), StructType([
+        StructField("payload", StructType([
+            StructField("id", IntegerType()),
+            StructField("name", StringType()),
+            StructField("email", StringType())
+        ]))
+    ])).alias("data"))
+
+
+df_final = df_json.select("data.payload.*")
+
+
+df_final.write \
+    .format("jdbc") \
+    .option("driver", "com.clickhouse.jdbc.ClickHouseDriver") \
+    .option("url", "jdbc:clickhouse://localhost:8123/default") \
+    .option("dbtable", "kafka_data") \
+    .option("user", "custom_user") \
+    .option("password", "0000") \
+    .option("createTableOptions", "ENGINE = MergeTree ORDER BY id") \
+    .mode("overwrite") \
+    .save()

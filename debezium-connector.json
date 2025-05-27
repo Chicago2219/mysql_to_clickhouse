@@ -2,16 +2,18 @@
   "name": "mysql-connector",
   "config": {
     "connector.class": "io.debezium.connector.mysql.MySqlConnector",
-    "database.hostname": "project-mysql-1",
+    "database.hostname": "mysql",
     "database.port": "3306",
     "database.user": "root",
     "database.password": "root",
     "database.server.id": "184054",
-    "database.server.name": "bank_server",
+    "database.server.name": "dbserver1",
     "database.include.list": "bank",
-    "table.include.list": "bank.accounts,bank.transactions",
-    "database.history.kafka.bootstrap.servers": "project-kafka-1:9092",
-    "database.history.kafka.topic": "schema-changes.bank",
-    "include.schema.changes": "true"
+    "table.include.list": "bank.customers",
+    "include.schema.changes": "true",
+    "database.history": "io.debezium.relational.history.KafkaDatabaseHistory",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
+    "schema.history.internal.kafka.topic": "schema-changes.mysql",
+    "topic.prefix": "dbserver1"
   }
 }
