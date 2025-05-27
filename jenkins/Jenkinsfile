@@ -1,6 +1,7 @@
 pipeline {
     agent any
 
+
     environment {
         CLICKHOUSE_JDBC_JAR = 'clickhouse-jdbc-0.6.0-all.jar'
         HTTPCLIENT_JAR = 'httpclient5-5.1.3.jar'
