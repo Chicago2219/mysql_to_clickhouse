@@ -1,56 +1,87 @@
 pipeline {
-    agent any
+  agent any
 
+  environment {
+    CLICKHOUSE_JDBC_VERSION = '0.6.4-patch21'
+    SPARK_VERSION          = '3.5.5'          // ваша версия Spark
+    SCALA_VERSION          = '2.12'           // ваша версия Scala
+    WORKDIR                = "${env.WORKSPACE}"
+  }
 
-    environment {
-        CLICKHOUSE_JDBC_JAR = 'clickhouse-jdbc-all.jar'
-        HTTPCLIENT_JAR = 'httpclient5-5.1.3.jar'
-        HTTPCORE_JAR = 'httpcore5-5.1.3.jar'
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    stages {
-        stage('Start Services') {
-            steps {
-                sh 'docker-compose start || docker-compose up -d'
-                sh 'sleep 15'
-            }
-        }
-
-        stage('Init MySQL') {
-            steps {
-                sh 'docker exec mysql_to_clickhouse-mysql-1 sh -c "mysql -uroot -proot bank < /sql/init_mysql.sql" || true'
-            }
-        }
-
-        stage('Register Debezium Connector') {
-            steps {
-                sh '''
-                echo 'Registering Debezium Connector...'
-                curl -i -X POST http://localhost:8083/connectors \
-                  -H "Content-Type: application/json" \
-                  --data-binary @debezium-connector.json || true
-                '''
-            }
-        }
-
-        stage('Create ClickHouse Views') {
-            steps {
-                sh '''
-                docker exec clickhouse-server clickhouse-client \
-                  --user=custom_user --password=0000 \
-                  --query="CREATE DATABASE IF NOT EXISTS default;"
-                '''
-            }
-        }
-
-        stage('Run Spark Job') {
-            steps {
-                sh '''
-                /opt/homebrew/bin/spark-submit \
-                  --jars $CLICKHOUSE_JDBC_JAR,$HTTPCLIENT_JAR,$HTTPCORE_JAR \
-                  etl/kafka_to_clickhouse.py
-                '''
-            }
-        }
+    stage('Start Docker Services') {
+      steps {
+        sh 'docker-compose up -d'
+        sh 'sleep 15'
+      }
     }
+
+    stage('Init MySQL') {
+      steps {
+        sh '''
+          docker exec project-mysql-1 bash -c "mysql -uroot -proot bank < /sql/init_mysql.sql" || true
+        '''
+      }
+    }
+
+    stage('Register Debezium') {
+      steps {
+        sh '''
+          curl -X POST http://localhost:8083/connectors \
+            -H "Content-Type: application/json" \
+            --data-binary @debezium-connector.json || true
+        '''
+      }
+    }
+
+    stage('Prepare JARs') {
+      steps {
+        dir("${WORKDIR}") {
+          sh '''
+            # Загрузим ClickHouse JDBC все-в-одном
+            wget -qO clickhouse-jdbc-all.jar \
+              https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/${CLICKHOUSE_JDBC_VERSION}/clickhouse-jdbc-${CLICKHOUSE_JDBC_VERSION}-all.jar
+
+            # (необязательно) если понадобятся отдельные httpclient/httpcore, их можно загрузить так же:
+            # wget -qO httpclient5.jar https://repo1.maven.org/.../httpclient5-5.1.3.jar
+            # wget -qO httpcore5.jar  https://repo1.maven.org/.../httpcore5-5.1.3.jar
+          '''
+        }
+      }
+    }
+
+    stage('Create ClickHouse DB') {
+      steps {
+        sh '''
+          docker exec clickhouse-server \
+            clickhouse-client --user=custom_user --password=0000 \
+            --query="CREATE DATABASE IF NOT EXISTS default;"
+        '''
+      }
+    }
+
+    stage('Run Spark Job') {
+      steps {
+        sh """
+          ${SPARK_HOME:-/opt/homebrew/bin}/spark-submit \
+            --master local[1] \
+            --packages org.apache.spark:spark-sql-kafka-0-10_${SCALA_VERSION}:${SPARK_VERSION} \
+            --jars ${WORKDIR}/clickhouse-jdbc-all.jar \
+            etl/kafka_to_clickhouse.py
+        """
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker-compose down -v'
+    }
+  }
 }
