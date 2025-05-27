@@ -1,56 +1,55 @@
 pipeline {
-  agent any
+    agent any
 
-  stages {
-    stage('Start Services') {
-      steps {
-        sh 'docker-compose start || docker-compose up -d'
-        sh 'sleep 30'
-      }
+    environment {
+        CLICKHOUSE_JDBC_JAR = 'clickhouse-jdbc-0.6.0-all.jar'
+        HTTPCLIENT_JAR = 'httpclient5-5.1.3.jar'
+        HTTPCORE_JAR = 'httpcore5-5.1.3.jar'
     }
 
-    stage('Init MySQL') {
-      steps {
-        sh '''
-        docker exec project-mysql-1 sh -c 'mysql -uroot -proot bank < /sql/init_mysql.sql' || true
-        '''
-      }
+    stages {
+        stage('Start Services') {
+            steps {
+                sh 'docker-compose start || docker-compose up -d'
+                sh 'sleep 15'
+            }
+        }
+
+        stage('Init MySQL') {
+            steps {
+                sh 'docker exec mysql_to_clickhouse-mysql-1 sh -c "mysql -uroot -proot bank < /sql/init_mysql.sql" || true'
+            }
+        }
+
+        stage('Register Debezium Connector') {
+            steps {
+                sh '''
+                echo 'Registering Debezium Connector...'
+                curl -i -X POST http://localhost:8083/connectors \
+                  -H "Content-Type: application/json" \
+                  --data-binary @debezium-connector.json || true
+                '''
+            }
+        }
+
+        stage('Create ClickHouse Views') {
+            steps {
+                sh '''
+                docker exec clickhouse-server clickhouse-client \
+                  --user=custom_user --password=0000 \
+                  --query="CREATE DATABASE IF NOT EXISTS default;"
+                '''
+            }
+        }
+
+        stage('Run Spark Job') {
+            steps {
+                sh '''
+                /opt/homebrew/bin/spark-submit \
+                  --jars $CLICKHOUSE_JDBC_JAR,$HTTPCLIENT_JAR,$HTTPCORE_JAR \
+                  etl/kafka_to_clickhouse.py
+                '''
+            }
+        }
     }
-
-  stage('Register Debezium Connector') {
-      steps {
-          sh '''
-              echo "Registering Debezium Connector..."
-              curl -X POST http://localhost:8083/connectors \
-                  -H 'Content-Type: application/json' \
-                  -d @./debezium-connector.json || true
-          '''
-      }
-  }
-
-    stage('Create ClickHouse Views') {
-      steps {
-        sh '''
-        docker exec clickhouse-server clickhouse-client \
-          --user=custom_user \
-          --password=0000 \
-          --query="CREATE DATABASE IF NOT EXISTS default;"
-
-        docker exec -i clickhouse-server clickhouse-client \
-          --user=custom_user \
-          --password=0000 < sql/clickhouse_views.sql || true
-        '''
-      }
-    }
-
-    stage('Run Spark Job') {
-      steps {
-        sh '''
-        /opt/homebrew/bin/spark-submit \
-        --jars clickhouse-jdbc-0.6.0-all.jar,httpcore5-5.1.3.jar,httpclient5-5.1.3.jar \
-        etl/kafka_to_clickhouse.py
-        '''
-      }
-    }
-  }
 }
