@@ -16,7 +16,7 @@ schema = StructType([
 
 
 df_raw = spark.read.format("kafka") \
-    .option("kafka.bootstrap.servers", "localhost:9092") \
+    .option("kafka.bootstrap.servers", "host.docker.internal:9092") \
     .option("subscribe", "dbserver1.bank.customers") \
     .load()
 
