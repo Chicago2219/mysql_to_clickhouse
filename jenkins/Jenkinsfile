@@ -18,7 +18,7 @@ pipeline {
 
         stage('Init MySQL') {
             steps {
-                sh 'docker exec mysql_to_clickhouse-mysql-1 sh -c "mysql -uroot -proot bank < /sql/init_mysql.sql" || true'
+                sh 'docker exec project-mysql-1 sh -c "mysql -uroot -proot bank < /sql/init_mysql.sql" || true'
             }
         }
 
