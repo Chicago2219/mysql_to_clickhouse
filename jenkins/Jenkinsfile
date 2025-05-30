@@ -2,39 +2,33 @@ pipeline {
     agent any
 
     environment {
-        // Путь до Spark, если установлено в переменной SPARK_HOME на агенте
-        SPARK_HOME = "${env.SPARK_HOME ?: '/opt/homebrew/bin'}"
-        JDBC_JAR = 'clickhouse-jdbc-all.jar'
+        CLICKHOUSE_JDBC_JAR = 'clickhouse-jdbc-all.jar'
+        CLICKHOUSE_JDBC_VERSION = '0.6.0'
+        HTTPCLIENT_JAR = 'httpclient5-5.1.3.jar'
+        HTTPCORE_JAR = 'httpcore5-5.1.3.jar'
     }
 
     stages {
         stage('Start Services') {
             steps {
-                sh 'docker-compose up -d'
+                sh 'docker-compose start || docker-compose up -d'
                 sh 'sleep 15'
             }
         }
 
         stage('Init MySQL') {
             steps {
-                // Исправлен путь к контейнеру и к файлу
-                sh '''
-                    if docker ps --format '{{.Names}}' | grep -q "project-mysql-1"; then
-                      docker exec project-mysql-1 sh -c 'mysql -uroot -proot bank < /sql/init_mysql.sql'
-                    else
-                      echo "MySQL container not found, skipping init"
-                    fi
-                '''
+                sh 'docker exec mysql_to_clickhouse-mysql-1 sh -c "mysql -uroot -proot bank < /sql/init_mysql.sql" || true'
             }
         }
 
         stage('Register Debezium Connector') {
             steps {
                 sh '''
-                    echo "Registering Debezium Connector..."
-                    curl -i -X POST http://localhost:8083/connectors \\
-                        -H "Content-Type: application/json" \\
-                        --data-binary @debezium-connector.json || true
+                echo 'Registering Debezium Connector...'
+                curl -i -X POST http://localhost:8083/connectors \
+                  -H "Content-Type: application/json" \
+                  --data-binary @debezium-connector.json || true
                 '''
             }
         }
@@ -42,11 +36,23 @@ pipeline {
         stage('Prepare JARs') {
             steps {
                 sh '''
-                    # Скачиваем JDBC-all, если его нет
-                    if [ ! -f "${JDBC_JAR}" ]; then
-                      wget https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/0.6.0-patch20/clickhouse-jdbc-0.6.0-patch20-all.jar \
-                        -O ${JDBC_JAR}
-                    fi
+                # Загрузка ClickHouse JDBC JAR
+                if [ ! -f "$CLICKHOUSE_JDBC_JAR" ]; then
+                  echo "Downloading ClickHouse JDBC driver..."
+                  wget https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/${CLICKHOUSE_JDBC_VERSION}/clickhouse-jdbc-${CLICKHOUSE_JDBC_VERSION}-all.jar \
+                    -O $CLICKHOUSE_JDBC_JAR || { echo "Failed to download ClickHouse JDBC driver"; exit 1; }
+                fi
+
+                # Загрузка Apache HttpClient и HttpCore, если нужно
+                if [ ! -f "$HTTPCLIENT_JAR" ]; then
+                  wget https://repo1.maven.org/maven2/org/apache/httpcomponents/client5/httpclient5/5.1.3/httpclient5-5.1.3.jar \
+                    -O $HTTPCLIENT_JAR || { echo "Failed to download HttpClient"; exit 1; }
+                fi
+
+                if [ ! -f "$HTTPCORE_JAR" ]; then
+                  wget https://repo1.maven.org/maven2/org/apache/httpcomponents/core5/httpcore5/5.1.3/httpcore5-5.1.3.jar \
+                    -O $HTTPCORE_JAR || { echo "Failed to download HttpCore"; exit 1; }
+                fi
                 '''
             }
         }
@@ -54,37 +60,21 @@ pipeline {
         stage('Create ClickHouse Views') {
             steps {
                 sh '''
-                    if docker ps --format '{{.Names}}' | grep -q "clickhouse-server"; then
-                      docker exec clickhouse-server clickhouse-client \
-                        --user=custom_user --password=0000 \
-                        --query="CREATE DATABASE IF NOT EXISTS default;"
-                    else
-                      echo "ClickHouse container not found, skipping DB creation"
-                    fi
+                docker exec clickhouse-server clickhouse-client \
+                  --user=custom_user --password=0000 \
+                  --query="CREATE DATABASE IF NOT EXISTS default;"
                 '''
             }
         }
 
         stage('Run Spark Job') {
             steps {
-                // Используем SPARK_HOME из env
                 sh '''
-                    echo "Running Spark job..."
-                    ${SPARK_HOME}/spark-submit \
-                      --jars ${JDBC_JAR} \
-                      --master local[1] \
-                      etl/kafka_to_clickhouse.py
+                /opt/homebrew/bin/spark-submit \
+                  --jars $CLICKHOUSE_JDBC_JAR,$HTTPCLIENT_JAR,$HTTPCORE_JAR \
+                  etl/kafka_to_clickhouse.py
                 '''
             }
-        }
-    }
-
-    post {
-        always {
-            // Останавливаем и очищаем контейнеры, удаляем volume
-            sh '''
-                docker-compose down -v
-            '''
         }
     }
 }
