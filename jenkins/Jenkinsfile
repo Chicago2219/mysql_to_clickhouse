@@ -71,8 +71,7 @@ pipeline {
             steps {
                 sh '''
                 /opt/homebrew/bin/spark-submit \
-                jars/clickhouse-jdbc-all.jar,jars/httpclient5-5.1.3.jar,jars/httpcore5-5.1.3.jar,\
-                jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,jars/kafka-clients-2.8.0.jar \
+                --jars "$CLICKHOUSE_JDBC_JAR,$HTTPCLIENT_JAR,$HTTPCORE_JAR,$SPARK_KAFKA_JAR,$KAFKA_CLIENTS_JAR" \
                 etl/kafka_to_clickhouse.py
                 '''
             }
