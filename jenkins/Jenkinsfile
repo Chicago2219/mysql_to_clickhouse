@@ -83,7 +83,7 @@ pipeline {
                 echo "=== Running Spark Job ==="
                 /opt/homebrew/bin/spark-submit \
                   --jars $CLICKHOUSE_JDBC_JAR,$SPARK_KAFKA_JAR \
-                  --conf "spark.jars.packages=org.apache.spark:spark-sql-kafka-0-10_2.12-3.5.0" \
+                  --conf "spark.jars.packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0" \
                   etl/kafka_to_clickhouse.py
                 '''
             }
