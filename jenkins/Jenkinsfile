@@ -70,8 +70,17 @@ pipeline {
         stage('Run Spark Job') {
             steps {
                 sh '''
+                echo "=== Downloading Spark Kafka Connector ==="
+                wget -q -O jars/spark-sql-kafka.jar \
+                https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.0/spark-sql-kafka-0-10_2.12-3.5.0.jar
+
+                echo "=== Running Spark Job ==="
                 /opt/homebrew/bin/spark-submit \
-                --jars "$CLICKHOUSE_JDBC_JAR,$HTTPCLIENT_JAR,$HTTPCORE_JAR,$SPARK_KAFKA_JAR,$KAFKA_CLIENTS_JAR" \
+                --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+                --jars jars/clickhouse-jdbc-0.6.0-all.jar,jars/spark-sql-kafka.jar \
+                --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+                --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog" \
+                --conf "spark.jars.packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0" \
                 etl/kafka_to_clickhouse.py
                 '''
             }
