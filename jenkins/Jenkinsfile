@@ -2,10 +2,11 @@ pipeline {
     agent any
 
     environment {
-        CLICKHOUSE_JDBC_JAR = 'jars/clickhouse-jdbc-all.jar'
         CLICKHOUSE_JDBC_VERSION = ''
+        CLICKHOUSE_JDBC_JAR = "jars/clickhouse-jdbc-all.jar"
         HTTPCLIENT_JAR = 'jars/httpclient5-5.1.3.jar'
         HTTPCORE_JAR = 'jars/httpcore5-5.1.3.jar'
+        SPARK_KAFKA_JAR = 'jars/spark-sql-kafka-0-10_2.12-3.5.0.jar'
     }
 
     stages {
@@ -36,14 +37,17 @@ pipeline {
         stage('Prepare JARs') {
             steps {
                 sh '''
-                # Загрузка ClickHouse JDBC JAR
+                # Создаём папку, если нет
+                mkdir -p jars
+
+                # Скачиваем ClickHouse JDBC
                 if [ ! -f "$CLICKHOUSE_JDBC_JAR" ]; then
                   echo "Downloading ClickHouse JDBC driver..."
                   wget https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/${CLICKHOUSE_JDBC_VERSION}/clickhouse-jdbc-${CLICKHOUSE_JDBC_VERSION}-all.jar \
                     -O $CLICKHOUSE_JDBC_JAR || { echo "Failed to download ClickHouse JDBC driver"; exit 1; }
                 fi
 
-                # Загрузка Apache HttpClient и HttpCore, если нужно
+                # HttpClient (если используется)
                 if [ ! -f "$HTTPCLIENT_JAR" ]; then
                   wget https://repo1.maven.org/maven2/org/apache/httpcomponents/client5/httpclient5/5.1.3/httpclient5-5.1.3.jar \
                     -O $HTTPCLIENT_JAR || { echo "Failed to download HttpClient"; exit 1; }
@@ -53,11 +57,17 @@ pipeline {
                   wget https://repo1.maven.org/maven2/org/apache/httpcomponents/core5/httpcore5/5.1.3/httpcore5-5.1.3.jar \
                     -O $HTTPCORE_JAR || { echo "Failed to download HttpCore"; exit 1; }
                 fi
+
+                # Spark Kafka Connector
+                if [ ! -f "$SPARK_KAFKA_JAR" ]; then
+                  wget https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.0/spark-sql-kafka-0-10_2.12-3.5.0.jar \
+                    -O $SPARK_KAFKA_JAR || { echo "Failed to download Kafka Connector"; exit 1; }
+                fi
                 '''
             }
         }
 
-        stage('Create ClickHouse Views') {
+        stage('Create ClickHouse DB') {
             steps {
                 sh '''
                 docker exec clickhouse-server clickhouse-client \
@@ -70,18 +80,11 @@ pipeline {
         stage('Run Spark Job') {
             steps {
                 sh '''
-                echo "=== Downloading Spark Kafka Connector ==="
-                wget -q -O jars/spark-sql-kafka.jar \
-                https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.0/spark-sql-kafka-0-10_2.12-3.5.0.jar
-
                 echo "=== Running Spark Job ==="
                 /opt/homebrew/bin/spark-submit \
-                --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
-                --jars jars/clickhouse-jdbc-all.jar,jars/spark-sql-kafka.jar \
-                --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
-                --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog" \
-                --conf "spark.jars.packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0" \
-                etl/kafka_to_clickhouse.py
+                  --jars $CLICKHOUSE_JDBC_JAR,$SPARK_KAFKA_JAR \
+                  --conf "spark.jars.packages=org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0" \
+                  etl/kafka_to_clickhouse.py
                 '''
             }
         }
