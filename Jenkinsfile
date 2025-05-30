@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
-        CLICKHOUSE_JDBC_JAR = 'clickhouse-jdbc-all.jar'
+        CLICKHOUSE_JDBC_JAR = 'jars/clickhouse-jdbc-all.jar'
         CLICKHOUSE_JDBC_VERSION = '0.6.0'
-        HTTPCLIENT_JAR = 'httpclient5-5.1.3.jar'
-        HTTPCORE_JAR = 'httpcore5-5.1.3.jar'
+        HTTPCLIENT_JAR = 'jars/httpclient5-5.1.3.jar'
+        HTTPCORE_JAR = 'jars/httpcore5-5.1.3.jar'
     }
 
     stages {
